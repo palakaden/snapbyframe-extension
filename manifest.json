@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Snap by Frame",
-  "version": "1.7",
+  "version": "1.8",
   "description": "Instantly capture, annotate, and copy any specific web page element or custom region directly to your clipboard.",
   "permissions": ["activeTab", "scripting", "notifications", "downloads"],
   "icons": {
@@ -14,7 +14,7 @@
     "service_worker": "background.js"
   },
   "action": {
-    "default_title": "Capture element screenshot (Alt+Shift+S)",
+    "default_title": "Take screenshot (Alt+Shift+S)",
     "default_icon": {
       "16": "icon16.png",
       "32": "icon32.png",
@@ -25,9 +25,11 @@
   "commands": {
     "trigger-screenshot": {
       "suggested_key": {
-        "default": "Alt+Shift+S"
+        "default": "Alt+Shift+S",
+        "mac": "Alt+Shift+S",
+        "windows": "Alt+Shift+S"
       },
-      "description": "Activate element hover screenshot tool"
+      "description": "ctivate element hover screenshot tool"
     }
   }
 }
