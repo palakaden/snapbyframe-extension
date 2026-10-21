@@ -1,14 +1,5 @@
 // =============================================================
-// Snap by Frame — Firefox-Style Screenshot Service Worker (MV3)
-// =============================================================
-// Features:
-//   - Trigger via shortcut (Ctrl+Shift+S / Alt+Shift+S) or toolbar icon
-//   - Region selection & Element hover capture
-//   - "Save visible" (instant viewport capture)
-//   - "Save full page" (smooth scrolling & slice stitching)
-//   - In-page Annotation Editor (Draw, Arrow, Box, Line, Text,
-//     Highlighter, Blur/Redact, Colors, Undo/Redo)
-//   - Instant Clipboard Copy & File Download
+// Snap by Frame — Screenshot & Screen Recorder Service Worker (MV3)
 // =============================================================
 
 const RESTRICTED_PREFIXES = [
@@ -25,15 +16,12 @@ function isRestrictedUrl(url) {
   return !url || RESTRICTED_PREFIXES.some((prefix) => url.startsWith(prefix));
 }
 
-const BLANK_ICON =
-  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
-
 function notify(title, message) {
   chrome.notifications.create({
     type: "basic",
-    iconUrl: BLANK_ICON,
-    title,
-    message
+    iconUrl: chrome.runtime.getURL("icon48.png"),
+    title: title || "Snap by Frame",
+    message: message || ""
   });
 }
 
@@ -54,30 +42,69 @@ async function captureTabWithRetry(windowId, retries = 3, delay = 250) {
 }
 
 /**
- * Initiates the screenshot overlay on the active tab
+ * Ensures the offscreen document is ready for audio/video recording
  */
-async function startCaptureFlow(tab) {
+async function ensureOffscreenDocument() {
+  const existingContexts = await chrome.runtime.getContexts({
+    contextTypes: ["OFFSCREEN_DOCUMENT"]
+  });
+  if (existingContexts.length === 0) {
+    await chrome.offscreen.createDocument({
+      url: "offscreen.html",
+      reasons: ["USER_MEDIA"],
+      justification: "Recording tab video"
+    });
+  }
+}
+
+/**
+ * Closes the offscreen document safely
+ */
+async function closeOffscreenDocument() {
+  try {
+    const existingContexts = await chrome.runtime.getContexts({
+      contextTypes: ["OFFSCREEN_DOCUMENT"]
+    });
+    if (existingContexts.length > 0) {
+      await chrome.offscreen.closeDocument();
+    }
+  } catch (err) {
+    console.error("closeOffscreenDocument error:", err);
+  }
+}
+
+/**
+ * Initiates the capture/recording overlay on the target tab
+ */
+async function startCaptureFlow(tab, mode = "screenshot") {
   if (!tab || !tab.id) {
-    notify("Screenshot Failed", "Could not find an active tab to capture.");
+    notify("Snap by Frame", "Please open a webpage first.");
     return;
   }
 
   if (isRestrictedUrl(tab.url)) {
     notify(
-      "Screenshot Blocked",
-      "Browser security prevents screenshots on this page (e.g. system settings, new tab, or the Chrome Web Store)."
+      "Snap by Frame",
+      "Extensions don't work on new/blank tabs, browser settings, or the Web Store. Please open any regular website!"
     );
     return;
   }
 
   try {
-    const dataUrl = await captureTabWithRetry(tab.windowId);
+    // For screenshot or recording, grab initial tab snapshot
+    let dataUrl = null;
+    try {
+      dataUrl = await captureTabWithRetry(tab.windowId, 2, 200);
+    } catch (e) {
+      console.warn("Initial capture slice optional fallback:", e);
+    }
 
     // Try sending message to content script
     try {
       await chrome.tabs.sendMessage(tab.id, {
         action: "initOverlay",
-        dataUrl: dataUrl
+        dataUrl: dataUrl,
+        mode: mode
       });
     } catch {
       // Content script not yet injected into this tab; inject it now
@@ -89,33 +116,32 @@ async function startCaptureFlow(tab) {
       // Send the init message now that content.js is loaded
       await chrome.tabs.sendMessage(tab.id, {
         action: "initOverlay",
-        dataUrl: dataUrl
+        dataUrl: dataUrl,
+        mode: mode
       });
     }
   } catch (err) {
-    console.error("Screenshot capture failed:", err);
+    console.error("startCaptureFlow failed:", err);
     notify(
-      "Screenshot Failed",
-      "Could not capture this page. Please wait a moment or refresh the tab."
+      "Snap by Frame",
+      "Could not open on this page. Please refresh the page and try again!"
     );
   }
 }
 
-// Global keyboard shortcut trigger
+// Global keyboard shortcut triggers
 chrome.commands.onCommand.addListener(async (command) => {
-  if (command !== "trigger-screenshot") return;
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (tab) {
-    startCaptureFlow(tab);
+  if (!tab) return;
+
+  if (command === "trigger-screenshot") {
+    startCaptureFlow(tab, "screenshot");
+  } else if (command === "trigger-recording") {
+    startCaptureFlow(tab, "record");
   }
 });
 
-// Extension toolbar icon click trigger
-chrome.action.onClicked.addListener((tab) => {
-  startCaptureFlow(tab);
-});
-
-// Runtime messages from content script
+// Runtime messages from content script & popup
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (!message || typeof message !== "object") return false;
 
@@ -149,16 +175,88 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
-  // 3. Trigger capture flow directly (e.g. from in-page keydown)
+  // 3. Trigger capture flow directly (e.g. from popup or in-page keydown)
   if (message.action === "startCaptureFlow") {
-    if (sender.tab) {
-      startCaptureFlow(sender.tab);
-      sendResponse({ ok: true });
+    const mode = message.mode || "screenshot";
+    if (message.tabId) {
+      chrome.tabs.get(message.tabId, (tab) => {
+        if (tab) startCaptureFlow(tab, mode);
+      });
+    } else if (sender.tab) {
+      startCaptureFlow(sender.tab, mode);
+    } else {
+      chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
+        if (tab) startCaptureFlow(tab, mode);
+      });
     }
+    sendResponse({ ok: true });
     return true;
   }
 
-  // 4. Desktop notification
+  // 4. Start Screen Recording via tabCapture & offscreen
+  if (message.action === "startRecording") {
+    (async () => {
+      try {
+        const tab = sender.tab;
+        if (!tab || !tab.id) throw new Error("No active tab found");
+
+        await ensureOffscreenDocument();
+
+        // Obtain media stream id for the active tab
+        const streamId = await chrome.tabCapture.getMediaStreamId({
+          targetTabId: tab.id
+        });
+
+        const res = await chrome.runtime.sendMessage({
+          target: "offscreen",
+          action: "startRecording",
+          streamId: streamId,
+          crop: message.crop
+        });
+
+        sendResponse(res || { ok: true });
+      } catch (err) {
+        console.error("startRecording error in background:", err);
+        sendResponse({ ok: false, error: err.message });
+      }
+    })();
+    return true;
+  }
+
+  // 5. Stop Screen Recording & download video
+  if (message.action === "stopRecording") {
+    (async () => {
+      try {
+        const res = await chrome.runtime.sendMessage({
+          target: "offscreen",
+          action: "stopRecording",
+          save: message.save
+        });
+
+        await closeOffscreenDocument();
+
+        if (message.save && res?.dataUrl) {
+          const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+          const ext = res.mimeType && res.mimeType.includes("mp4") ? "mp4" : "webm";
+          const filename = `recording-${timestamp}.${ext}`;
+          chrome.downloads.download({
+            url: res.dataUrl,
+            filename: filename,
+            saveAs: false
+          });
+        }
+
+        sendResponse({ ok: true, saved: !!(message.save && res?.dataUrl) });
+      } catch (err) {
+        console.error("stopRecording error in background:", err);
+        await closeOffscreenDocument();
+        sendResponse({ ok: false, error: err.message });
+      }
+    })();
+    return true;
+  }
+
+  // 6. Desktop notification
   if (message.action === "notify") {
     notify(message.title || "Snap by Frame", message.message || "");
     sendResponse({ ok: true });
