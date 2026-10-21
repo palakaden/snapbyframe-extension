@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Snap by Frame</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    body {
+      width: 290px;
+      background: #131318;
+      color: #f0f0f5;
+      padding: 14px;
+      user-select: none;
+    }
+
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 14px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .logo-img {
+      width: 26px;
+      height: 26px;
+      border-radius: 6px;
+    }
+
+    .title-group {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .app-title {
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: -0.2px;
+      color: #ffffff;
+    }
+
+    .app-sub {
+      font-size: 11px;
+      color: #8b8b9e;
+    }
+
+    .actions {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .action-btn {
+      width: 100%;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 10px;
+      padding: 10px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      color: #ffffff;
+      transition: all 0.15s ease;
+      text-align: left;
+    }
+
+    .action-btn:hover {
+      background: rgba(255, 255, 255, 0.08);
+      transform: translateY(-1px);
+    }
+
+    .btn-screenshot:hover {
+      border-color: #0060df;
+      box-shadow: 0 4px 14px rgba(0, 96, 223, 0.25);
+    }
+
+    .btn-record:hover {
+      border-color: #ff3b30;
+      box-shadow: 0 4px 14px rgba(255, 59, 48, 0.25);
+    }
+
+    .btn-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .icon-box {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+    }
+
+    .icon-screenshot {
+      background: rgba(0, 96, 223, 0.18);
+      color: #388bfd;
+    }
+
+    .icon-record {
+      background: rgba(255, 59, 48, 0.18);
+      color: #ff453a;
+    }
+
+    .btn-text {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .btn-label {
+      font-size: 13px;
+      font-weight: 600;
+      color: #ffffff;
+    }
+
+    .btn-desc {
+      font-size: 10.5px;
+      color: #8b8b9e;
+      margin-top: 1px;
+    }
+
+    .shortcut-badge {
+      font-size: 10px;
+      font-weight: 600;
+      color: #a0a0b2;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 6px;
+      padding: 3px 6px;
+      white-space: nowrap;
+    }
+
+    .footer {
+      margin-top: 12px;
+      padding-top: 8px;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+      text-align: center;
+      font-size: 10px;
+      color: #717182;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <img src="icon32.png" alt="Snap by Frame" class="logo-img">
+    <div class="title-group">
+      <div class="app-title">Snap by Frame</div>
+      <div class="app-sub">Capture & Screen Recorder</div>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button class="action-btn btn-screenshot" id="btn-screenshot" title="Take screenshot (Alt+Shift+S)">
+      <div class="btn-left">
+        <div class="icon-box icon-screenshot">📸</div>
+        <div class="btn-text">
+          <span class="btn-label">Screenshot</span>
+          <span class="btn-desc">Element, region, or full page</span>
+        </div>
+      </div>
+      <span class="shortcut-badge">Alt+Shift+S</span>
+    </button>
+
+    <button class="action-btn btn-record" id="btn-record" title="Record screen region (Alt+Shift+R)">
+      <div class="btn-left">
+        <div class="icon-box icon-record">🎥</div>
+        <div class="btn-text">
+          <span class="btn-label">Record Screen</span>
+          <span class="btn-desc">Select region & record video</span>
+        </div>
+      </div>
+      <span class="shortcut-badge">Alt+Shift+R</span>
+    </button>
+  </div>
+
+  <div class="footer">
+    Press ESC anytime to cancel overlay
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
+
